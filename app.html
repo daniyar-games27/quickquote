@@ -26,9 +26,10 @@ button{border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:65
 <body>
 <header>
   <div><div class="brand">QUICK<span>QUOTE</span></div><div class="tag">Простое создание профессиональных смет</div></div>
-  <button class="secondary screen-only" onclick="saveDraft()">Save</button>
+  <button class="secondary screen-only" onclick="saveQuote()">Save quote</button>
 </header>
 <main>
+<section class="card screen-only" style="grid-column:1/-1"><h2>My Quotes</h2><label>Search saved quotes</label><input id="quoteSearch" placeholder="Search customer or business"><div id="quoteCount" class="sub">0 quotes</div><div id="quoteList" style="display:grid;gap:10px;margin-top:12px"></div></section>
 <section class="card editor">
 <h1>Новая смета</h1><p class="sub">Your estimate updates automatically as you fill in the details.</p>
 <div class="grid2">
@@ -48,7 +49,7 @@ button{border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:65
 <button class="secondary" onclick="addItem()"> + Add item услугу</button>
 <div class="actions">
 <button class="primary" onclick="window.print()">Скачать PDF / Печать</button>
-<button class="secondary" onclick="saveDraft()">Save</button>
+<button class="secondary" onclick="saveQuote()">Save quote</button>
 <button class="ghost" onclick="resetForm()">Сбросить</button>
 </div>
 <p class="notice">Data is stored only in this browser. PDF создаётся через системную печать — выберите «Save как PDF».</p>
@@ -75,11 +76,16 @@ function removeItem(i){items.splice(i,1);renderItems();updatePreview();autosave(
 function updatePreview(){let sum=items.reduce((a,x)=>a+Number(x.qty||0)*Number(x.price||0),0);$("p-business").textContent=$("business").value||"Business name";$("p-contact").textContent=$("contact").value;$("p-client").textContent=$("client").value||"—";$("p-address").textContent=$("address").value;$("p-note").textContent=$("note").value;$("p-desc").textContent=$("description").value;$("p-date").textContent=$("date").value;$("p-items").innerHTML=items.map(x=>`<tr><td>${escapeHTML(x.name||"Service")}</td><td>${x.qty}</td><td>${fmt(Number(x.price||0))}</td><td>${fmt(Number(x.qty||0)*Number(x.price||0))}</td></tr>`).join("");$("p-total").textContent=fmt(sum);$("p-valid").textContent=$("valid").value?`Estimate действительно ${$("valid").value} дней.`:"";$("p-foot").textContent="Спасибо за обращение!\\n"+($("contact").value||"") }
 function getData(){return {business:$("business").value,contact:$("contact").value,client:$("client").value,date:$("date").value,address:$("address").value,description:$("description").value,note:$("note").value,currency:$("currency").value,valid:$("valid").value,items}}
 function autosave(){try{localStorage.setItem("quickquote-draft",JSON.stringify(getData()))}catch{}}
-function saveDraft(){autosave();alert("Смета сохранена в этом браузере.")}
+function saveDraft(){autosave();alert("Черновик сохранён.")}
+function quoteRecords(){try{return JSON.parse(localStorage.getItem("quickquote-records")||"[]")}catch{return []}}
+function saveQuote(){let d=getData(),records=quoteRecords(),id=window.currentQuoteId||("q"+Date.now());let rec={id,data:d,status:window.currentQuoteStatus||"Draft",updated:new Date().toISOString()};let idx=records.findIndex(x=>x.id===id);if(idx>=0)records[idx]=rec;else records.unshift(rec);localStorage.setItem("quickquote-records",JSON.stringify(records));window.currentQuoteId=id;renderQuoteList();alert("Смета сохранена в My Quotes.")}
+function renderQuoteList(){let all=quoteRecords(),q=(($('quoteSearch')||{}).value||'').toLowerCase(),records=all.filter(r=>((r.data.client||'')+' '+(r.data.business||'')).toLowerCase().includes(q));$('quoteCount').textContent=all.length+' saved quote(s)';let box=$('quoteList');box.innerHTML='';if(!records.length){box.innerHTML='<div class="empty">No saved quotes yet.</div>';return;}records.forEach(r=>{let row=document.createElement('div');row.style.cssText='border:1px solid var(--line);padding:12px;border-radius:12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap';let title=document.createElement('div');title.innerHTML='<strong>'+escapeHTML(r.data.client||'Unnamed customer')+'</strong><div class="sub">'+escapeHTML(r.data.business||'')+' · '+r.updated.slice(0,10)+'</div>';let actions=document.createElement('div');actions.style.cssText='display:flex;gap:6px;flex-wrap:wrap';let status=document.createElement('select');['Draft','Sent','Accepted','Declined'].forEach(v=>{let o=document.createElement('option');o.value=v;o.textContent=v;o.selected=r.status===v;status.appendChild(o)});status.onchange=()=>{let a=quoteRecords(),x=a.find(z=>z.id===r.id);if(x){x.status=status.value;localStorage.setItem('quickquote-records',JSON.stringify(a));renderQuoteList()}};let open=document.createElement('button');open.className='secondary small';open.textContent='Open';open.onclick=()=>loadQuoteRecord(r.id);let dup=document.createElement('button');dup.className='secondary small';dup.textContent='Duplicate';dup.onclick=()=>{let a=quoteRecords(),c=JSON.parse(JSON.stringify(r));c.id='q'+Date.now();c.status='Draft';c.updated=new Date().toISOString();c.data.client=(c.data.client||'')+' (copy)';a.unshift(c);localStorage.setItem('quickquote-records',JSON.stringify(a));renderQuoteList();alert('Copy created. Open it from the list.')};let del=document.createElement('button');del.className='ghost small';del.textContent='Delete';del.onclick=()=>{if(confirm('Delete quote?')){localStorage.setItem('quickquote-records',JSON.stringify(quoteRecords().filter(z=>z.id!==r.id)));renderQuoteList()}};actions.append(status,open,dup,del);row.append(title,actions);box.appendChild(row)})}
+function loadQuoteRecord(id){let r=quoteRecords().find(x=>x.id===id);if(!r)return;for(let k of ['business','contact','client','date','address','description','note','currency','valid'])if(r.data[k]!=null)$(k).value=r.data[k];items=r.data.items||[];window.currentQuoteId=r.id;window.currentQuoteStatus=r.status;renderItems();updatePreview();autosave();window.scrollTo({top:0,behavior:'smooth'})}
+
 function loadDraft(){try{let d=JSON.parse(localStorage.getItem("quickquote-draft")||"null");if(!d)return;for(let k of ["business","contact","client","date","address","description","note","currency","valid"])if(d[k]!=null)$(k).value=d[k];items=d.items||[]}catch{}}
 function resetForm(){if(!confirm("Clear текущую смету?"))return;items=[];["business","contact","client","address","description","note"].forEach(k=>$(k).value="");$("date").value=today();$("valid").value=14;addItem();autosave()}
 ["business","contact","client","date","address","description","note","currency","valid"].forEach(id=>$(id).addEventListener("input",()=>{updatePreview();autosave()}));
-loadDraft();if(!$("date").value)$("date").value=today();if(!items.length)items=[{name:"Cleaning service",qty:1,price:0},{name:"Additional service",qty:1,price:0}];renderItems();updatePreview();
+loadDraft();if(!$("date").value)$("date").value=today();if(!items.length)items=[{name:"Cleaning service",qty:1,price:0},{name:"Additional service",qty:1,price:0}];renderItems();updatePreview();renderQuoteList();$("quoteSearch").addEventListener("input",renderQuoteList);
 </script>
 </body>
 </html>
