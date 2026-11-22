@@ -49,6 +49,12 @@ button{border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:65
 <div class="field"><label>Template</label><select id="templateSelect"><option value="">Choose a template</option></select></div>
 </div>
 <div class="actions screen-only"><button class="secondary" onclick="applyTemplate()">Apply template</button><button class="secondary" onclick="saveCustomTemplate()">Save current items as template</button></div>
+<h2>Business Presets</h2>
+<div class="grid2 screen-only">
+<div class="field"><label>Saved business preset</label><select id="presetSelect"><option value="">Choose saved preset</option></select></div>
+<div class="field"><label>Preset actions</label><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary small" onclick="loadBusinessPreset()">Load preset</button><button class="secondary small" onclick="saveBusinessPreset()">Save current setup</button><button class="ghost small" onclick="deleteBusinessPreset()">Delete preset</button></div></div>
+</div>
+<p class="notice screen-only">Save your business name, contact, currency and service items as a reusable setup. Presets stay in this browser.</p>
 <h2>Услуги</h2>
 <div class="items-head"><span>Service</span><span>Qty</span><span>Price</span><span>Total</span><span></span></div>
 <div id="items"></div>
@@ -94,6 +100,11 @@ function refreshTemplates(){let cat=$('category').value,sel=$('templateSelect');
 function applyTemplate(){let cat=$('category').value,name=$('templateSelect').value;if(!name)return alert('Choose a template first.');let t={...(builtInTemplates[cat]||{}),...(customTemplates()[cat]||{})}[name];if(!t)return; if(items.length && !confirm('Replace the current quote items with this template?'))return;items=t.map(x=>typeof x==='string'?{name:x,qty:1,price:0}:{...x});renderItems();updatePreview();autosave()}
 function saveCustomTemplate(){if(!items.length)return alert('Add at least one service item first.');let name=prompt('Name this template:');if(!name||!name.trim())return;let all=customTemplates(),cat=$('category').value;all[cat]=all[cat]||{};all[cat][name.trim()]=items.map(x=>({...x}));localStorage.setItem('quickquote-custom-templates',JSON.stringify(all));refreshTemplates();$('templateSelect').value=name.trim();alert('Custom template saved in this browser.')}
 
+function businessPresets(){try{return JSON.parse(localStorage.getItem('quickquote-business-presets')||'{}')}catch{return {}}}
+function refreshBusinessPresets(){let sel=$('presetSelect');if(!sel)return;let keep=sel.value;sel.innerHTML='<option value="">Choose saved preset</option>';Object.keys(businessPresets()).forEach(name=>{let o=document.createElement('option');o.value=name;o.textContent=name;sel.appendChild(o)});if(keep&&businessPresets()[keep])sel.value=keep}
+function saveBusinessPreset(){if(!items.length)return alert('Add services first.');let name=prompt('Name your business preset:');if(!name||!name.trim())return;let p=businessPresets();p[name.trim()]={business:$('business').value,contact:$('contact').value,currency:$('currency').value,items:items.map(x=>({...x}))};localStorage.setItem('quickquote-business-presets',JSON.stringify(p));refreshBusinessPresets();$('presetSelect').value=name.trim();alert('Business preset saved locally.')}
+function loadBusinessPreset(){let name=$('presetSelect').value,p=businessPresets()[name];if(!p)return alert('Choose a preset first.');if(items.length&&!confirm('Replace current service items with the saved preset?'))return;if(p.business!=null)$('business').value=p.business;if(p.contact!=null)$('contact').value=p.contact;if(p.currency)$('currency').value=p.currency;items=(p.items||[]).map(x=>({...x}));renderItems();updatePreview();autosave();alert('Preset loaded.')}
+function deleteBusinessPreset(){let name=$('presetSelect').value;if(!name)return alert('Choose a preset first.');if(!confirm('Delete this business preset?'))return;let p=businessPresets();delete p[name];localStorage.setItem('quickquote-business-presets',JSON.stringify(p));refreshBusinessPresets()}
 function fmt(n){let c=$("currency").value;try{return new Intl.NumberFormat("ru-RU",{style:"currency",currency:c,maximumFractionDigits:2}).format(n)}catch{return n+" "+c}}
 function renderItems(){let box=$("items");box.innerHTML="";items.forEach((it,i)=>{let row=document.createElement("div");row.className="item-row";row.innerHTML=`<input aria-label="Название услуги" placeholder="Service" value="${escapeHTML(it.name)}" data-i="${i}" data-k="name"><input aria-label="Количество" type="number" min="0" step="0.01" value="${it.qty}" data-i="${i}" data-k="qty"><input aria-label="Price" type="number" min="0" step="0.01" value="${it.price}" data-i="${i}" data-k="price"><div class="item-total" id="itotal-${i}">${fmt(Number(it.qty)*Number(it.price))}</div><button class="remove" aria-label="Удалить" onclick="removeItem(${i})">×</button>`;box.appendChild(row)});box.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",e=>{let i=+e.target.dataset.i,k=e.target.dataset.k;items[i][k]=k==="name"?e.target.value:Number(e.target.value||0);let total=$("itotal-"+i);if(total)total.textContent=fmt(Number(items[i].qty)*Number(items[i].price));updatePreview();autosave()}))}
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -110,7 +121,7 @@ function loadQuoteRecord(id){let r=quoteRecords().find(x=>x.id===id);if(!r)retur
 function loadDraft(){try{let d=JSON.parse(localStorage.getItem("quickquote-draft")||"null");if(!d)return;for(let k of ["business","contact","client","date","address","description","note","currency","valid"])if(d[k]!=null)$(k).value=d[k];items=d.items||[]}catch{}}
 function resetForm(){if(!confirm("Clear текущую смету?"))return;items=[];["business","contact","client","address","description","note"].forEach(k=>$(k).value="");$("date").value=today();$("valid").value=14;addItem();autosave()}
 ["business","contact","client","date","address","description","note","currency","valid"].forEach(id=>$(id).addEventListener("input",()=>{updatePreview();autosave()}));
-$("category").addEventListener("change",refreshTemplates);refreshTemplates();
+$("category").addEventListener("change",refreshTemplates);refreshTemplates();refreshBusinessPresets();
 loadDraft();if(!$("date").value)$("date").value=today();if(!items.length)items=[{name:"Cleaning service",qty:1,price:0},{name:"Additional service",qty:1,price:0}];renderItems();updatePreview();renderQuoteList();$("quoteSearch").addEventListener("input",renderQuoteList);
 </script>
 </body>
