@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QUICKQUOTE — Сметы</title>
+<style>
+:root{--bg:#0b1220;--panel:#111b2e;--panel2:#17233a;--line:#273650;--text:#eef4ff;--muted:#9aaac3;--blue:#65a9ff;--green:#54d6a0}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#142540 0,#0b1220 50%);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);min-height:100vh}
+header{max-width:1200px;margin:auto;padding:28px 22px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #22314a}
+.brand{font-weight:850;letter-spacing:1.5px;font-size:22px}.brand span{color:var(--blue)}.tag{font-size:12px;color:var(--muted);margin-top:4px}
+main{max-width:1200px;margin:28px auto;padding:0 22px;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:22px}
+.card{background:rgba(17,27,46,.92);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 18px 50px rgba(0,0,0,.16)}
+h1{font-size:25px;margin:0 0 8px}h2{font-size:17px;margin:0 0 18px}.sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+label{display:block;font-size:12px;color:var(--muted);margin:0 0 7px}input,textarea,select{width:100%;background:#0c1628;color:var(--text);border:1px solid #2b3b56;border-radius:10px;padding:11px 12px;font:inherit;outline:none}input:focus,textarea:focus,select:focus{border-color:var(--blue)}
+textarea{resize:vertical;min-height:76px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-bottom:14px}
+button{border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:650;cursor:pointer;transition:.15s}button:hover{filter:brightness(1.08);transform:translateY(-1px)}.primary{background:var(--blue);color:#071324}.secondary{background:#22334d;color:var(--text);border:1px solid #334764}.ghost{background:transparent;color:#ffb8b8;border:1px solid #633d4b}.small{padding:7px 10px;font-size:12px}
+.items-head,.item-row{display:grid;grid-template-columns:minmax(0,1.5fr) 72px 110px 90px 34px;gap:8px;align-items:center}.items-head{font-size:11px;color:var(--muted);padding:0 2px 8px}.item-row{margin-bottom:9px}.item-row input{padding:9px 8px}.item-total{font-size:13px;text-align:right}.remove{background:#29354a;color:#ffb7b7;padding:7px;font-size:15px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.preview{background:#f8fafc;color:#132033;border-radius:14px;padding:28px;min-height:550px}.preview .muted{color:#607086}.preview h2{font-size:24px;color:#132033}.preview-top{display:flex;justify-content:space-between;gap:15px;border-bottom:2px solid #dce4ee;padding-bottom:18px;margin-bottom:22px}.preview table{width:100%;border-collapse:collapse;font-size:13px}.preview th{text-align:left;background:#edf2f8;padding:10px}.preview td{padding:10px;border-bottom:1px solid #e1e7ef}.preview th:last-child,.preview td:last-child{text-align:right}.preview .sum{margin:24px 0 0 auto;max-width:260px;font-size:15px}.sumline{display:flex;justify-content:space-between;padding:7px 0}.grand{font-size:21px;font-weight:800;border-top:2px solid #cbd5e1;padding-top:13px}.foot{margin-top:30px;font-size:12px;color:#65758b;white-space:pre-wrap}.empty{padding:16px;text-align:center;color:var(--muted);border:1px dashed #334764;border-radius:12px}
+.notice{font-size:12px;color:var(--muted);margin-top:12px}
+@media(max-width:900px){main{grid-template-columns:1fr}.preview{min-height:auto}}
+@media(max-width:520px){header{padding:20px 16px}main{padding:0 14px}.card{padding:16px}.items-head,.item-row{grid-template-columns:minmax(0,1.4fr) 55px 85px 72px 30px;gap:5px}.items-head{font-size:10px}.item-row input{font-size:12px;padding:8px 5px}.preview{padding:18px}.grid2{gap:9px}}
+@media print{body{background:white;color:#132033}header,main{display:block;padding:0;margin:0;max-width:none}.editor,.screen-only{display:none!important}.preview{box-shadow:none;border:none;border-radius:0;padding:10mm;min-height:0}.preview h2{color:#132033}main{display:block}.preview table{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<header>
+  <div><div class="brand">QUICK<span>QUOTE</span></div><div class="tag">Простое создание профессиональных смет</div></div>
+  <button class="secondary screen-only" onclick="saveDraft()">Save</button>
+</header>
+<main>
+<section class="card editor">
+<h1>Новая смета</h1><p class="sub">Your estimate updates automatically as you fill in the details.</p>
+<div class="grid2">
+<div class="field"><label>Ваш бизнес</label><input id="business" placeholder="e.g. CleanPro"></div>
+<div class="field"><label>Ваш контакт</label><input id="contact" placeholder="Телефон или email"></div>
+<div class="field"><label>Customer</label><input id="client" placeholder="Customer name"></div>
+<div class="field"><label>Дата</label><input id="date" type="date"></div>
+</div>
+<div class="field"><label>Адрес объекта (необязательно)</label><input id="address" placeholder="Адрес объекта"></div><div class="field"><label>Job descriptionы</label><textarea id="description" placeholder="Кратко опишите работу или объект"></textarea></div><div class="field"><label>Дополнительные условия</label><textarea id="note" placeholder="Сроки, условия оплаты или примечания"></textarea></div>
+<div class="grid2">
+<div class="field"><label>Currency</label><select id="currency"><option value="NOK">NOK</option><option value="EUR">EUR</option><option value="USD">USD</option><option value="RUB">RUB</option><option value="GBP">GBP</option></select></div>
+<div class="field"><label>Valid for (days)</label><input id="valid" type="number" min="1" value="14"></div>
+</div>
+<h2>Услуги</h2>
+<div class="items-head"><span>Service</span><span>Qty</span><span>Price</span><span>Total</span><span></span></div>
+<div id="items"></div>
+<button class="secondary" onclick="addItem()"> + Add item услугу</button>
+<div class="actions">
+<button class="primary" onclick="window.print()">Скачать PDF / Печать</button>
+<button class="secondary" onclick="saveDraft()">Save</button>
+<button class="ghost" onclick="resetForm()">Сбросить</button>
+</div>
+<p class="notice">Data is stored only in this browser. PDF создаётся через системную печать — выберите «Save как PDF».</p>
+</section>
+<section class="card">
+<div class="preview" id="preview">
+<div class="preview-top"><div><h2>Estimate</h2><div class="muted" id="p-business">Business name</div><div class="muted" id="p-contact"></div></div><div style="text-align:right"><strong>QUICKQUOTE</strong><div class="muted" id="p-date"></div></div></div>
+<div style="margin-bottom:22px"><strong>Customer:</strong> <span id="p-client">—</span><div class="muted" id="p-address"></div><div class="muted" id="p-desc" style="margin-top:8px;white-space:pre-wrap"></div></div>
+<table><thead><tr><th>Service</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody id="p-items"></tbody></table>
+<div class="sum"><div class="sumline"><span>Total</span><strong id="p-total">0</strong></div><div class="muted" id="p-valid"></div></div>
+<div class="foot" id="p-note"></div><div class="foot" id="p-foot">Спасибо за обращение!</div>
+</div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let items=[];
+function today(){let d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
+function addItem(name="",qty=1,price=0){items.push({name,qty,price});renderItems();updatePreview();autosave()}
+function fmt(n){let c=$("currency").value;try{return new Intl.NumberFormat("ru-RU",{style:"currency",currency:c,maximumFractionDigits:2}).format(n)}catch{return n+" "+c}}
+function renderItems(){let box=$("items");box.innerHTML="";items.forEach((it,i)=>{let row=document.createElement("div");row.className="item-row";row.innerHTML=`<input aria-label="Название услуги" placeholder="Service" value="${escapeHTML(it.name)}" data-i="${i}" data-k="name"><input aria-label="Количество" type="number" min="0" step="0.01" value="${it.qty}" data-i="${i}" data-k="qty"><input aria-label="Price" type="number" min="0" step="0.01" value="${it.price}" data-i="${i}" data-k="price"><div class="item-total" id="itotal-${i}">${fmt(Number(it.qty)*Number(it.price))}</div><button class="remove" aria-label="Удалить" onclick="removeItem(${i})">×</button>`;box.appendChild(row)});box.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",e=>{let i=+e.target.dataset.i,k=e.target.dataset.k;items[i][k]=k==="name"?e.target.value:Number(e.target.value||0);let total=$("itotal-"+i);if(total)total.textContent=fmt(Number(items[i].qty)*Number(items[i].price));updatePreview();autosave()}))}
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function removeItem(i){items.splice(i,1);renderItems();updatePreview();autosave()}
+function updatePreview(){let sum=items.reduce((a,x)=>a+Number(x.qty||0)*Number(x.price||0),0);$("p-business").textContent=$("business").value||"Business name";$("p-contact").textContent=$("contact").value;$("p-client").textContent=$("client").value||"—";$("p-address").textContent=$("address").value;$("p-note").textContent=$("note").value;$("p-desc").textContent=$("description").value;$("p-date").textContent=$("date").value;$("p-items").innerHTML=items.map(x=>`<tr><td>${escapeHTML(x.name||"Service")}</td><td>${x.qty}</td><td>${fmt(Number(x.price||0))}</td><td>${fmt(Number(x.qty||0)*Number(x.price||0))}</td></tr>`).join("");$("p-total").textContent=fmt(sum);$("p-valid").textContent=$("valid").value?`Estimate действительно ${$("valid").value} дней.`:"";$("p-foot").textContent="Спасибо за обращение!\\n"+($("contact").value||"") }
+function getData(){return {business:$("business").value,contact:$("contact").value,client:$("client").value,date:$("date").value,address:$("address").value,description:$("description").value,note:$("note").value,currency:$("currency").value,valid:$("valid").value,items}}
+function autosave(){try{localStorage.setItem("quickquote-draft",JSON.stringify(getData()))}catch{}}
+function saveDraft(){autosave();alert("Смета сохранена в этом браузере.")}
+function loadDraft(){try{let d=JSON.parse(localStorage.getItem("quickquote-draft")||"null");if(!d)return;for(let k of ["business","contact","client","date","address","description","note","currency","valid"])if(d[k]!=null)$(k).value=d[k];items=d.items||[]}catch{}}
+function resetForm(){if(!confirm("Clear текущую смету?"))return;items=[];["business","contact","client","address","description","note"].forEach(k=>$(k).value="");$("date").value=today();$("valid").value=14;addItem();autosave()}
+["business","contact","client","date","address","description","note","currency","valid"].forEach(id=>$(id).addEventListener("input",()=>{updatePreview();autosave()}));
+loadDraft();if(!$("date").value)$("date").value=today();if(!items.length)items=[{name:"Cleaning service",qty:1,price:0},{name:"Additional service",qty:1,price:0}];renderItems();updatePreview();
+</script>
+</body>
+</html>
