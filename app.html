@@ -43,6 +43,12 @@ button{border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:65
 <div class="field"><label>Currency</label><select id="currency"><option value="NOK">NOK</option><option value="EUR">EUR</option><option value="USD">USD</option><option value="RUB">RUB</option><option value="GBP">GBP</option></select></div>
 <div class="field"><label>Valid for (days)</label><input id="valid" type="number" min="1" value="14"></div>
 </div>
+<h2>Smart Templates</h2>
+<div class="grid2 screen-only">
+<div class="field"><label>Service category</label><select id="category"><option value="Cleaning">Cleaning</option><option value="Painting">Painting</option><option value="Landscaping & Gardening">Landscaping & Gardening</option><option value="Handyman">Handyman</option><option value="Plumbing">Plumbing</option><option value="Electrical Services">Electrical Services</option><option value="Moving & Relocation">Moving & Relocation</option><option value="Car Detailing">Car Detailing</option><option value="Photography & Videography">Photography & Videography</option><option value="IT & Computer Services">IT & Computer Services</option><option value="Construction & Renovation">Construction & Renovation</option><option value="Personal & Professional Services">Personal & Professional Services</option><option value="Other">Other</option></select></div>
+<div class="field"><label>Template</label><select id="templateSelect"><option value="">Choose a template</option></select></div>
+</div>
+<div class="actions screen-only"><button class="secondary" onclick="applyTemplate()">Apply template</button><button class="secondary" onclick="saveCustomTemplate()">Save current items as template</button></div>
 <h2>Услуги</h2>
 <div class="items-head"><span>Service</span><span>Qty</span><span>Price</span><span>Total</span><span></span></div>
 <div id="items"></div>
@@ -69,6 +75,25 @@ const $=id=>document.getElementById(id);
 let items=[];
 function today(){let d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
 function addItem(name="",qty=1,price=0){items.push({name,qty,price});renderItems();updatePreview();autosave()}
+const builtInTemplates={
+"Cleaning":{"Standard Cleaning":["Dusting","Vacuuming","Floor cleaning","Bathroom cleaning","Kitchen cleaning"],"Deep Cleaning":["Detailed dusting","Deep kitchen cleaning","Deep bathroom cleaning","Floor cleaning","Interior surface cleaning"],"Window Cleaning":["Interior window cleaning","Exterior window cleaning","Window frame cleaning"],"Move-out Cleaning":["Kitchen cleaning","Bathroom cleaning","Cabinet cleaning","Floor cleaning","Interior window cleaning"]},
+"Painting":{"Painting Package":["Surface preparation","Wall painting","Ceiling painting","Trim painting"]},
+"Landscaping & Gardening":{"Garden Maintenance":["Lawn mowing","Hedge trimming","Garden cleanup","Planting"]},
+"Handyman":{"Handyman Services":["Furniture assembly","Minor repairs","Installation","Maintenance"]},
+"Plumbing":{"Plumbing Services":["Pipe repair","Fixture installation","Leak inspection","Maintenance"]},
+"Electrical Services":{"Electrical Services":["Lighting installation","Electrical inspection","Fixture replacement","Wiring work"]},
+"Moving & Relocation":{"Moving Package":["Packing","Loading","Transportation","Unloading"]},
+"Car Detailing":{"Car Detailing Package":["Exterior wash","Interior cleaning","Polishing","Detailing package"]},
+"Photography & Videography":{"Photography Package":["Photography session","Editing","Prints","Additional shooting time"]},
+"IT & Computer Services":{"IT Support Package":["Computer setup","Software installation","Troubleshooting","Maintenance"]},
+"Construction & Renovation":{"Renovation Package":["Demolition","Material preparation","Installation","Finishing"]},
+"Personal & Professional Services":{"Professional Service Package":["Consultation","Service session","Preparation","Follow-up"]},
+"Other":{"Custom Service Template":["Custom service"]}};
+function customTemplates(){try{return JSON.parse(localStorage.getItem('quickquote-custom-templates')||'{}')}catch{return {}}}
+function refreshTemplates(){let cat=$('category').value,sel=$('templateSelect');sel.innerHTML='<option value="">Choose a template</option>';let t={...(builtInTemplates[cat]||{}),...(customTemplates()[cat]||{})};Object.keys(t).forEach(name=>{let o=document.createElement('option');o.value=name;o.textContent=name;sel.appendChild(o)})}
+function applyTemplate(){let cat=$('category').value,name=$('templateSelect').value;if(!name)return alert('Choose a template first.');let t={...(builtInTemplates[cat]||{}),...(customTemplates()[cat]||{})}[name];if(!t)return; if(items.length && !confirm('Replace the current quote items with this template?'))return;items=t.map(x=>typeof x==='string'?{name:x,qty:1,price:0}:{...x});renderItems();updatePreview();autosave()}
+function saveCustomTemplate(){if(!items.length)return alert('Add at least one service item first.');let name=prompt('Name this template:');if(!name||!name.trim())return;let all=customTemplates(),cat=$('category').value;all[cat]=all[cat]||{};all[cat][name.trim()]=items.map(x=>({...x}));localStorage.setItem('quickquote-custom-templates',JSON.stringify(all));refreshTemplates();$('templateSelect').value=name.trim();alert('Custom template saved in this browser.')}
+
 function fmt(n){let c=$("currency").value;try{return new Intl.NumberFormat("ru-RU",{style:"currency",currency:c,maximumFractionDigits:2}).format(n)}catch{return n+" "+c}}
 function renderItems(){let box=$("items");box.innerHTML="";items.forEach((it,i)=>{let row=document.createElement("div");row.className="item-row";row.innerHTML=`<input aria-label="Название услуги" placeholder="Service" value="${escapeHTML(it.name)}" data-i="${i}" data-k="name"><input aria-label="Количество" type="number" min="0" step="0.01" value="${it.qty}" data-i="${i}" data-k="qty"><input aria-label="Price" type="number" min="0" step="0.01" value="${it.price}" data-i="${i}" data-k="price"><div class="item-total" id="itotal-${i}">${fmt(Number(it.qty)*Number(it.price))}</div><button class="remove" aria-label="Удалить" onclick="removeItem(${i})">×</button>`;box.appendChild(row)});box.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",e=>{let i=+e.target.dataset.i,k=e.target.dataset.k;items[i][k]=k==="name"?e.target.value:Number(e.target.value||0);let total=$("itotal-"+i);if(total)total.textContent=fmt(Number(items[i].qty)*Number(items[i].price));updatePreview();autosave()}))}
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -85,6 +110,7 @@ function loadQuoteRecord(id){let r=quoteRecords().find(x=>x.id===id);if(!r)retur
 function loadDraft(){try{let d=JSON.parse(localStorage.getItem("quickquote-draft")||"null");if(!d)return;for(let k of ["business","contact","client","date","address","description","note","currency","valid"])if(d[k]!=null)$(k).value=d[k];items=d.items||[]}catch{}}
 function resetForm(){if(!confirm("Clear текущую смету?"))return;items=[];["business","contact","client","address","description","note"].forEach(k=>$(k).value="");$("date").value=today();$("valid").value=14;addItem();autosave()}
 ["business","contact","client","date","address","description","note","currency","valid"].forEach(id=>$(id).addEventListener("input",()=>{updatePreview();autosave()}));
+$("category").addEventListener("change",refreshTemplates);refreshTemplates();
 loadDraft();if(!$("date").value)$("date").value=today();if(!items.length)items=[{name:"Cleaning service",qty:1,price:0},{name:"Additional service",qty:1,price:0}];renderItems();updatePreview();renderQuoteList();$("quoteSearch").addEventListener("input",renderQuoteList);
 </script>
 </body>
