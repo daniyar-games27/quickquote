@@ -29,6 +29,17 @@ button{border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:65
   <div class="actions screen-only"><button class="secondary" onclick="saveQuote()">Save quote</button><button class="secondary" onclick="toggleClientView()">Client Preview</button></div>
 </header>
 <main>
+<section class="card screen-only" id="accountPanel" style="grid-column:1/-1">
+  <h2>Cloud account</h2>
+  <p class="sub" id="authMessage">Sign in to save and access your quotes across devices.</p>
+  <div id="authForm" class="grid2">
+    <div class="field"><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
+    <div class="field"><label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 8 characters"></div>
+  </div>
+  <div class="actions screen-only" id="authActions"><button class="primary" id="signInBtn" type="button">Sign in</button><button class="secondary" id="signUpBtn" type="button">Create account</button></div>
+  <div class="actions screen-only" id="signedInActions" style="display:none"><strong id="signedInEmail" style="align-self:center"></strong><button class="secondary" id="signOutBtn" type="button">Sign out</button></div>
+  <p class="notice">Cloud quote storage is available after sign-in. Your browser draft and local templates remain on this device.</p>
+</section>
 <section class="card screen-only" style="grid-column:1/-1"><h2>My Quotes</h2><label>Search saved quotes</label><input id="quoteSearch" placeholder="Search customer or business"><div id="quoteCount" class="sub">0 quotes</div><div class="grid2" id="quoteStats" style="margin:12px 0"><div class="card"><label>Total quotes</label><strong id="statTotal">0</strong></div><div class="card"><label>Accepted</label><strong id="statAccepted">0</strong></div><div class="card"><label>Pending</label><strong id="statPending">0</strong></div><div class="card"><label>Accepted value</label><strong id="statValue">0 RUB</strong></div></div><div class="field"><label>Filter by status</label><select id="statusFilter"><option value="All">All statuses</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Declined</option></select></div><div id="quoteList" style="display:grid;gap:10px;margin-top:12px"></div></section>
 <section class="card editor">
 <h1>New Quote</h1><p class="sub">Your estimate updates automatically as you fill in the details.</p>
@@ -64,7 +75,7 @@ button{border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:65
 <button class="secondary" onclick="saveQuote()">Save quote</button>
 <button class="ghost" onclick="resetForm()">Reset</button>
 </div>
-<p class="notice">Launch configuration: RUB-only pricing. Data is stored only in this browser. PDF is created through your print dialog — choose “Save as PDF”.</p>
+<p class="notice">RUB-only pricing. Sign in to store saved quotes securely in your cloud account. PDF is created through your print dialog — choose “Save as PDF”.</p>
 </section>
 <section class="card">
 <div class="preview" id="preview">
@@ -124,5 +135,74 @@ function resetForm(){if(!confirm("Clear the current quote?"))return;items=[];["b
 $("category").addEventListener("change",refreshTemplates);refreshTemplates();refreshBusinessPresets();
 loadDraft();if(!$("date").value)$("date").value=today();if(!items.length)items=[{name:"Cleaning service",qty:1,price:0},{name:"Additional service",qty:1,price:0}];renderItems();updatePreview();renderQuoteList();$("quoteSearch").addEventListener("input",renderQuoteList);
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script>
+// QUICKQUOTE v10 cloud integration. Only the Supabase publishable key belongs here.
+let cloudQuotes = [];
+let currentUser = null;
+let cloudReady = false;
+const cloudStatus = (message) => { const el = $('authMessage'); if (el) el.textContent = message; };
+function cloudConfigured(){ return !!(window.QUICKQUOTE_SUPABASE && window.QUICKQUOTE_SUPABASE.url && window.QUICKQUOTE_SUPABASE.publishableKey && !String(window.QUICKQUOTE_SUPABASE.url).includes('YOUR_PROJECT') && !String(window.QUICKQUOTE_SUPABASE.publishableKey).includes('YOUR_PUBLISHABLE')); }
+function quoteRecords(){ return currentUser ? cloudQuotes : JSON.parse(localStorage.getItem('quickquote-records')||'[]'); }
+function cloudAmount(data){ return (data.items||[]).reduce((sum,it)=>sum+Number(it.qty||0)*Number(it.price||0),0); }
+function fromCloud(row){ return {id:row.id,data:row.quote_data||{},status:row.status||'Draft',updated:row.updated_at||row.created_at||new Date().toISOString()}; }
+async function refreshCloudQuotes(){
+  if(!currentUser || !window.qqSupabase) return;
+  const {data,error}=await window.qqSupabase.from('quotes').select('*').order('updated_at',{ascending:false});
+  if(error){cloudStatus('Could not load cloud quotes: '+error.message);return;}
+  cloudQuotes=(data||[]).map(fromCloud); renderQuoteList();
+}
+function renderQuoteList(){
+  const all=quoteRecords(),q=(($('quoteSearch')||{}).value||'').toLowerCase(),sf=($('statusFilter')||{}).value||'All';
+  const records=all.filter(r=>((r.data?.client||'')+' '+(r.data?.business||'')).toLowerCase().includes(q)&&(sf==='All'||r.status===sf));
+  $('quoteCount').textContent=all.length+' saved quote(s)'+(currentUser?' · Cloud':' · This browser');
+  const accepted=all.filter(r=>r.status==='Accepted'),pending=all.filter(r=>r.status==='Sent');
+  $('statTotal').textContent=all.length;$('statAccepted').textContent=accepted.length;$('statPending').textContent=pending.length;
+  $('statValue').textContent=new Intl.NumberFormat('en-US',{style:'currency',currency:'RUB',maximumFractionDigits:2}).format(accepted.reduce((sum,r)=>sum+cloudAmount(r.data),0));
+  const box=$('quoteList');box.innerHTML='';
+  if(!records.length){box.innerHTML='<div class="empty">No saved quotes yet.</div>';return;}
+  records.forEach(r=>{
+    const row=document.createElement('div');row.style.cssText='border:1px solid var(--line);padding:12px;border-radius:12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap';
+    const title=document.createElement('div');title.innerHTML='<strong>'+escapeHTML(r.data.client||'Unnamed customer')+'</strong><div class="sub">'+escapeHTML(r.data.business||'')+' · '+String(r.updated).slice(0,10)+'</div>';
+    const actions=document.createElement('div');actions.style.cssText='display:flex;gap:6px;flex-wrap:wrap';
+    const status=document.createElement('select');['Draft','Sent','Accepted','Declined'].forEach(v=>{let o=document.createElement('option');o.value=v;o.textContent=v;o.selected=r.status===v;status.appendChild(o)});
+    status.onchange=async()=>{if(currentUser){const {error}=await window.qqSupabase.from('quotes').update({status:status.value,updated_at:new Date().toISOString()}).eq('id',r.id);if(error){alert('Status update failed: '+error.message);return;}await refreshCloudQuotes();}else{let a=quoteRecords(),x=a.find(z=>z.id===r.id);if(x){x.status=status.value;localStorage.setItem('quickquote-records',JSON.stringify(a));renderQuoteList();}}};
+    const open=document.createElement('button');open.className='secondary small';open.textContent='Open';open.onclick=()=>loadQuoteRecord(r.id);
+    const dup=document.createElement('button');dup.className='secondary small';dup.textContent='Duplicate';dup.onclick=async()=>{const c=JSON.parse(JSON.stringify(r));c.id=null;c.status='Draft';c.updated=new Date().toISOString();c.data.client=(c.data.client||'')+' (copy)';if(currentUser){const {error}=await window.qqSupabase.from('quotes').insert({user_id:currentUser.id,title:'Quote copy',client_name:c.data.client,status:'Draft',amount:cloudAmount(c.data),currency:'RUB',quote_data:c.data});if(error){alert('Duplicate failed: '+error.message);return;}await refreshCloudQuotes();alert('Copy created.');}else{c.id='q'+Date.now();let a=quoteRecords();a.unshift(c);localStorage.setItem('quickquote-records',JSON.stringify(a));renderQuoteList();alert('Copy created. Open it from the list.');}};
+    const del=document.createElement('button');del.className='ghost small';del.textContent='Delete';del.onclick=async()=>{if(!confirm('Delete quote?'))return;if(currentUser){const {error}=await window.qqSupabase.from('quotes').delete().eq('id',r.id);if(error){alert('Delete failed: '+error.message);return;}await refreshCloudQuotes();}else{localStorage.setItem('quickquote-records',JSON.stringify(quoteRecords().filter(z=>z.id!==r.id)));renderQuoteList();}};
+    actions.append(status,open,dup,del);row.append(title,actions);box.appendChild(row);
+  });
+}
+async function saveQuote(){
+  const d=getData(),status=window.currentQuoteStatus||'Draft';
+  if(currentUser){
+    const payload={user_id:currentUser.id,title:(d.client||'New Quote').slice(0,120),client_name:d.client||null,status,amount:cloudAmount(d),currency:'RUB',quote_data:d,updated_at:new Date().toISOString()};
+    let result;
+    if(window.currentQuoteId){result=await window.qqSupabase.from('quotes').update(payload).eq('id',window.currentQuoteId).select().single();}
+    else{result=await window.qqSupabase.from('quotes').insert(payload).select().single();}
+    if(result.error){alert('Cloud save failed: '+result.error.message);return;}
+    window.currentQuoteId=result.data.id;window.currentQuoteStatus=result.data.status;updatePreview();await refreshCloudQuotes();alert('Quote saved to your cloud account.');
+  }else{
+    let records=quoteRecords(),id=window.currentQuoteId||('QQ-'+new Date().getFullYear()+'-'+Date.now().toString().slice(-6));
+    let rec={id,data:d,status,updated:new Date().toISOString()};let idx=records.findIndex(x=>x.id===id);if(idx>=0)records[idx]=rec;else records.unshift(rec);
+    localStorage.setItem('quickquote-records',JSON.stringify(records));window.currentQuoteId=id;window.currentQuoteStatus=status;updatePreview();renderQuoteList();alert('Quote saved in this browser. Sign in to save quotes to the cloud.');
+  }
+}
+function loadQuoteRecord(id){let r=quoteRecords().find(x=>x.id===id);if(!r)return;for(let k of ['business','contact','client','date','address','description','note','currency','valid'])if(r.data[k]!=null)$(k).value=r.data[k];$('currency').value='RUB';items=r.data.items||[];window.currentQuoteId=r.id;window.currentQuoteStatus=r.status;renderItems();updatePreview();autosave();window.scrollTo({top:0,behavior:'smooth'});}
+async function signIn(){const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||!password){cloudStatus('Enter your email and password.');return;}cloudStatus('Signing in…');const {error}=await window.qqSupabase.auth.signInWithPassword({email,password});if(error)cloudStatus('Sign-in failed: '+error.message);}
+async function signUp(){const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||password.length<8){cloudStatus('Enter a valid email and a password with at least 8 characters.');return;}cloudStatus('Creating account…');const {data,error}=await window.qqSupabase.auth.signUp({email,password});if(error){cloudStatus('Account creation failed: '+error.message);return;}cloudStatus(data.session?'Account created. You are signed in.':'Account created. Check your email to confirm, then sign in.');}
+async function updateAuthUI(session){const nextUser=session?.user||null;if((currentUser?.id||null)!==(nextUser?.id||null))window.currentQuoteId=null;currentUser=nextUser;$('authForm').style.display=currentUser?'none':'grid';$('authActions').style.display=currentUser?'none':'flex';$('signedInActions').style.display=currentUser?'flex':'none';$('signedInEmail').textContent=currentUser?.email||'';if(currentUser){cloudStatus('Signed in. Your saved quotes are stored in your private cloud account.');await refreshCloudQuotes();}else{cloudQuotes=[];cloudStatus(cloudConfigured()?'Sign in to save and access your quotes across devices.':'Supabase is not configured yet. Add your project URL and publishable key to supabase-config.js.');renderQuoteList();}}
+async function initQuickQuoteCloud(){
+  if(!cloudConfigured()||!window.supabase?.createClient){cloudStatus('Supabase setup is incomplete. Configure supabase-config.js before using cloud storage.');$('signInBtn').disabled=true;$('signUpBtn').disabled=true;return;}
+  window.qqSupabase=window.supabase.createClient(window.QUICKQUOTE_SUPABASE.url,window.QUICKQUOTE_SUPABASE.publishableKey);
+  $('signInBtn').addEventListener('click',signIn);$('signUpBtn').addEventListener('click',signUp);$('signOutBtn').addEventListener('click',async()=>{const {error}=await window.qqSupabase.auth.signOut();if(error)cloudStatus('Sign-out failed: '+error.message);});
+  const {data,error}=await window.qqSupabase.auth.getSession();if(error){cloudStatus('Session check failed: '+error.message);return;}await updateAuthUI(data.session);
+  window.qqSupabase.auth.onAuthStateChange((_event,session)=>{setTimeout(()=>updateAuthUI(session),0);});
+}
+initQuickQuoteCloud();
+</script>
+
 </body>
 </html>
